@@ -8,7 +8,12 @@ api_url = "https://data.cityofnewyork.us/api/views/dnpx-dfnc/rows.csv?accessType
 print(f"Fetching LIVE data directly from NYC Open Data API: {api_url}...")
 
 # 1. Load Data
-df = pd.read_csv(api_url, usecols=['dbn', 'metric_variable_name', 'metric_value'])
+df = pd.read_csv(api_url, usecols=['District, Borough and School Number (DBN)', 'Metric Variable Name', 'Metric Value'])
+df = df.rename(columns={
+    'District, Borough and School Number (DBN)': 'dbn',
+    'Metric Variable Name': 'metric_variable_name',
+    'Metric Value': 'metric_value'
+})
 df['metric_value'] = pd.to_numeric(df['metric_value'], errors='coerce')
 df = df.dropna(subset=['metric_value'])
 
