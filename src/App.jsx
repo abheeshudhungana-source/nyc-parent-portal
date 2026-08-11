@@ -59,7 +59,7 @@ export default function App() {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'auto' }}>
         {view === 'parent' ? <ParentDashboard /> : <AnalystDashboard />}
       </div>
 

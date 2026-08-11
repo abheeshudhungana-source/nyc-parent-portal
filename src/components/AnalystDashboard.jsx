@@ -3,8 +3,8 @@ import Plot from 'react-plotly.js';
 
 const METRICS = {
   academics: [
-    { id: 'math_ela_percent_proficient_3_8_all', title: 'Math & ELA Proficiency (3-8)' },
-    { id: 'ela_percent_proficient_3_8_all', title: 'ELA Proficiency (3-8)' },
+    { id: 'nondropout_4_all', title: '4-Year Non-Dropout Rate' },
+    { id: 'pct_cer_6mo_vocat_all', title: 'Vocational Certification (6 mo)' },
     { id: 'grad_pct_4_all', title: '4-Year Graduation Rate' },
     { id: 'grad_pct_6_all', title: '6-Year Graduation Rate' }
   ],
