@@ -23,6 +23,7 @@ const METRICS = {
 export default function AnalystDashboard() {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('academics');
+  const [selectedBoroughs, setSelectedBoroughs] = useState(['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island']);
 
   useEffect(() => {
     fetch('/borough_timeseries.json')
@@ -47,15 +48,18 @@ export default function AnalystDashboard() {
     const boroughs = ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'];
     const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
     
-    const traces = boroughs.map((boro, i) => ({
-      x: metricData.years,
-      y: metricData[boro],
-      type: 'scatter',
-      mode: 'lines+markers',
-      name: boro,
-      line: { color: colors[i], width: 3 },
-      marker: { size: 8 }
-    }));
+    const traces = boroughs.map((boro, i) => {
+      if (!selectedBoroughs.includes(boro)) return null;
+      return {
+        x: metricData.years,
+        y: metricData[boro],
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: boro,
+        line: { color: colors[i], width: 3 },
+        marker: { size: 8 }
+      };
+    }).filter(Boolean);
 
     return (
       <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
@@ -104,6 +108,42 @@ export default function AnalystDashboard() {
             {tab}
           </button>
         ))}
+      </div>
+
+      {/* BOROUGH FILTER */}
+      <div style={{ marginBottom: '30px', padding: '20px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <h3 style={{ margin: '0 0 15px', color: '#2c3e50', fontSize: '1.1em' }}>Filter Boroughs (Applies to all graphs)</h3>
+        <div style={{ display: 'flex', gap: '25px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'].map(boro => (
+            <label key={boro} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '1.05em', color: '#34495e' }}>
+              <input 
+                type="checkbox" 
+                checked={selectedBoroughs.includes(boro)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedBoroughs([...selectedBoroughs, boro]);
+                  } else {
+                    setSelectedBoroughs(selectedBoroughs.filter(b => b !== boro));
+                  }
+                }}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              {boro}
+            </label>
+          ))}
+          <button 
+            onClick={() => setSelectedBoroughs(['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'])}
+            style={{ 
+              marginLeft: 'auto', padding: '8px 16px', borderRadius: '6px', 
+              border: '1px solid #bdc3c7', background: '#ecf0f1', color: '#2c3e50',
+              cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.background = '#bdc3c7'}
+            onMouseOut={(e) => e.target.style.background = '#ecf0f1'}
+          >
+            Select All
+          </button>
+        </div>
       </div>
 
       {/* GRAPHS */}
