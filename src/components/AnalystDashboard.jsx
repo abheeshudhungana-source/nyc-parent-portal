@@ -1,0 +1,115 @@
+import React, { useState, useEffect } from 'react';
+import Plot from 'react-plotly.js';
+
+const METRICS = {
+  academics: [
+    { id: 'math_ela_percent_proficient_3_8_all', title: 'Math & ELA Proficiency (3-8)' },
+    { id: 'ela_percent_proficient_3_8_all', title: 'ELA Proficiency (3-8)' },
+    { id: 'grad_pct_4_all', title: '4-Year Graduation Rate' },
+    { id: 'grad_pct_6_all', title: '6-Year Graduation Rate' }
+  ],
+  engagement: [
+    { id: 'attendance_k8_all', title: 'Average Student Attendance (K-8)' },
+    { id: 'chronic_absent_ems_all', title: 'Chronic Absenteeism (EMS)' },
+    { id: 'attendance_hs_all', title: 'Average Student Attendance (HS)' },
+    { id: 'chronic_absent_hs_all', title: 'Chronic Absenteeism (HS)' }
+  ],
+  demographics: [
+    { id: 'pct_cri_4yr_all', title: 'College Readiness Index (4-Year)' },
+    { id: 'lre_all', title: 'Disabilities - Less Restrictive Environments' }
+  ]
+};
+
+export default function AnalystDashboard() {
+  const [data, setData] = useState(null);
+  const [activeTab, setActiveTab] = useState('academics');
+
+  useEffect(() => {
+    fetch('/borough_timeseries.json')
+      .then(res => res.json())
+      .then(json => setData(json))
+      .catch(err => console.error("Error loading time series data", err));
+  }, []);
+
+  if (!data) return <div style={{ padding: '50px', textAlign: 'center', fontSize: '1.2em' }}>Loading Time-Series Data...</div>;
+
+  const renderPlot = (metricId, title) => {
+    const metricData = data[metricId];
+    if (!metricData) {
+      return (
+        <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
+          <p style={{ color: '#888' }}>Data not available in API.</p>
+        </div>
+      );
+    }
+
+    const boroughs = ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'];
+    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
+    
+    const traces = boroughs.map((boro, i) => ({
+      x: metricData.years,
+      y: metricData[boro],
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: boro,
+      line: { color: colors[i], width: 3 },
+      marker: { size: 8 }
+    }));
+
+    return (
+      <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
+        <Plot
+          data={traces}
+          layout={{
+            autosize: true,
+            height: 400,
+            margin: { t: 20, r: 20, b: 40, l: 50 },
+            xaxis: { title: 'School Year', tickformat: 'd' },
+            yaxis: { title: 'Value' },
+            legend: { orientation: 'h', y: -0.2 }
+          }}
+          useResizeHandler={true}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: '40px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
+      <h1 style={{ fontSize: '2.5em', color: '#2c3e50', margin: '0 0 10px' }}>Analyst Dashboard</h1>
+      <p style={{ color: '#7f8c8d', fontSize: '1.1em', marginBottom: '30px' }}>Time-Series Borough Analysis. Click legend items to isolate or compare boroughs.</p>
+
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '40px' }}>
+        {Object.keys(METRICS).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '12px 24px',
+              fontSize: '1.1em',
+              fontWeight: 'bold',
+              textTransform: 'capitalize',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: activeTab === tab ? '#3498db' : '#e0e6ed',
+              color: activeTab === tab ? 'white' : '#7f8c8d',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* GRAPHS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(600px, 1fr))', gap: '30px' }}>
+        {METRICS[activeTab].map(m => renderPlot(m.id, m.title))}
+      </div>
+    </div>
+  );
+}
