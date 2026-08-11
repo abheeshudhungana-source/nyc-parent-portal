@@ -36,8 +36,12 @@ export default function AnalystDashboard() {
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
 
     fetch(url)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`API returned status: ${res.status}`);
+        return res.json();
+      })
       .then(rows => {
+        if (!Array.isArray(rows)) throw new Error("API did not return an array of rows");
         const boroughMap = {'M': 'Manhattan', 'X': 'Bronx', 'K': 'Brooklyn', 'Q': 'Queens', 'R': 'Staten Island'};
         const processed = {};
         
@@ -78,7 +82,16 @@ export default function AnalystDashboard() {
 
         setData(finalData);
       })
-      .catch(err => console.error("Error loading time series data", err));
+      .catch(err => {
+        console.error("Live fetch failed, attempting fallback to static JSON:", err);
+        fetch('/borough_timeseries.json')
+          .then(res => res.json())
+          .then(json => setData(json))
+          .catch(fallbackErr => {
+            console.error("Fallback also failed:", fallbackErr);
+            setData({}); // set to empty object to remove loading screen
+          });
+      });
   }, []);
 
   if (!data) return <div style={{ padding: '50px', textAlign: 'center', fontSize: '1.2em' }}>Loading Time-Series Data...</div>;
