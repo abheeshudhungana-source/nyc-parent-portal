@@ -4,11 +4,11 @@ import os
 import urllib.request
 
 print("Starting ETL Process for Parent Portal...")
-csv_path = r"C:\Users\dhung\Downloads\dnpx-dfnc_version_40.csv"
-print(f"Reading RAW data from {csv_path}...")
+api_url = "https://data.cityofnewyork.us/api/views/dnpx-dfnc/rows.csv?accessType=DOWNLOAD"
+print(f"Fetching LIVE data directly from NYC Open Data API: {api_url}...")
 
 # 1. Load Data
-df = pd.read_csv(csv_path, usecols=['dbn', 'metric_variable_name', 'metric_value'])
+df = pd.read_csv(api_url, usecols=['dbn', 'metric_variable_name', 'metric_value'])
 df['metric_value'] = pd.to_numeric(df['metric_value'], errors='coerce')
 df = df.dropna(subset=['metric_value'])
 
