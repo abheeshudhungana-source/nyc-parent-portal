@@ -94,7 +94,29 @@ export default function AnalystDashboard() {
       });
   }, []);
 
-  if (!data) return <div style={{ padding: '50px', textAlign: 'center', fontSize: '1.2em' }}>Loading Time-Series Data...</div>;
+  if (!data) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f4f7f6' }}>
+        <style>{`
+          @keyframes pulse-ring {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(52, 152, 219, 0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(52, 152, 219, 0); }
+          }
+        `}</style>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          borderRadius: '50%',
+          backgroundColor: '#3498db',
+          animation: 'pulse-ring 1.5s infinite',
+          marginBottom: '25px'
+        }}></div>
+        <div style={{ fontSize: '1.4em', color: '#2c3e50', fontWeight: 'bold' }}>Loading Time-Series Data...</div>
+        <div style={{ fontSize: '1em', color: '#7f8c8d', marginTop: '8px' }}>Fetching live metrics from NYC Open Data</div>
+      </div>
+    );
+  }
 
   const renderPlot = (metricId, title) => {
     const metricData = data[metricId];
