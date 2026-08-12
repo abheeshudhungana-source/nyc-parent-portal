@@ -55,7 +55,10 @@ export default function HighSchoolDashboard() {
     Object.keys(districtAgg).forEach(dist => {
       const getVal = (mName) => {
         const obj = districtAgg[dist][mName];
-        return obj && obj.weight > 0 ? (obj.sum / obj.weight).toFixed(1) : null;
+        if (!obj || obj.weight === 0) return null;
+        let rawVal = obj.sum / obj.weight;
+        if (mName === 'grad_pct_4_all') rawVal *= 100;
+        return parseFloat(rawVal.toFixed(1));
       };
 
       finalMetrics[dist] = {
