@@ -62,7 +62,9 @@ export default function K8Dashboard() {
       const getVal = (mName) => {
         const obj = districtAgg[dist][mName];
         if (!obj || obj.totalWeight === 0) return null;
-        return parseFloat((obj.sumWeighted / obj.totalWeight).toFixed(1));
+        let rawVal = obj.sumWeighted / obj.totalWeight;
+        rawVal *= 100;
+        return parseFloat(rawVal.toFixed(1));
       };
 
       finalMetrics[dist] = {
