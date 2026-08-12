@@ -8,12 +8,12 @@ export default function ParentDashboard() {
   const [metrics, setMetrics] = useState(null);
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [mapMetric, setMapMetric] = useState('math');
-  const [selectedSchoolType, setSelectedSchoolType] = useState('Elementary');
+  const [selectedSchoolType, setSelectedSchoolType] = useState('All Schools');
 
   useEffect(() => {
     fetch('/districts.geojson').then(r => r.json()).then(setGeojson);
 
-    const metricsToFetch = ['prof_pct_mth_all', 'prof_pct_ela_all', 'grad_pct_4_all', 'mean_score_sat_math_all', 'mean_score_sat_writ_all'];
+    const metricsToFetch = ['prof_pct_mth_all', 'prof_pct_ela_all', 'grad_pct_4_all'];
     const metricsStr = metricsToFetch.map(m => `'${m}'`).join(',');
     const soql = `SELECT dbn, school_type, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) AND dbn IS NOT NULL LIMIT 200000`;
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
@@ -66,8 +66,8 @@ export default function ParentDashboard() {
       };
 
       finalMetrics[dist] = {
-        math: selectedSchoolType === 'High School' ? getVal('mean_score_sat_math_all') : getVal('prof_pct_mth_all'),
-        reading: selectedSchoolType === 'High School' ? getVal('mean_score_sat_writ_all') : getVal('prof_pct_ela_all'),
+        math: getVal('prof_pct_mth_all'),
+        reading: getVal('prof_pct_ela_all'),
         graduation: getVal('grad_pct_4_all')
       };
     });
@@ -129,15 +129,9 @@ export default function ParentDashboard() {
   });
 
   // Calculate valid min and max for the colorscale
-  let zMin = 0;
-  let zMax = 100;
-  let tickSuffix = '%';
-
-  if (selectedSchoolType === 'High School' && (mapMetric === 'math' || mapMetric === 'reading')) {
-    zMin = 200;
-    zMax = 800;
-    tickSuffix = '';
-  }
+  const validZ = zScores.filter(v => !isNaN(v));
+  const zMin = validZ.length > 0 ? Math.min(...validZ) : 0;
+  const zMax = validZ.length > 0 ? Math.max(...validZ) : 100;
 
   const handleMapClick = (data) => {
     if (data.points && data.points.length > 0) {
@@ -169,7 +163,7 @@ export default function ParentDashboard() {
               onChange={(e) => setSelectedSchoolType(e.target.value)}
               style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
             >
-              <option value="All Schools" disabled={mapMetric === 'math' || mapMetric === 'reading'}>All Schools</option>
+              <option value="All Schools">All Schools</option>
               <option value="Elementary">Elementary</option>
               <option value="Middle">Middle School</option>
               <option value="High School">High School</option>
@@ -180,17 +174,11 @@ export default function ParentDashboard() {
             <label style={{ fontSize: '0.85em', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Color Map By</label>
             <select 
               value={mapMetric} 
-              onChange={(e) => {
-                const val = e.target.value;
-                setMapMetric(val);
-                if ((val === 'math' || val === 'reading') && selectedSchoolType === 'All Schools') {
-                  setSelectedSchoolType('Elementary');
-                }
-              }}
+              onChange={(e) => setMapMetric(e.target.value)}
               style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
             >
-              <option value="math">Math Proficiency / SAT</option>
-              <option value="reading">Reading Proficiency / SAT</option>
+              <option value="math">Math Proficiency</option>
+              <option value="reading">Reading Proficiency</option>
               <option value="graduation">Graduation Rate %</option>
             </select>
           </div>
@@ -208,7 +196,7 @@ export default function ParentDashboard() {
             text: textLabels,
             hoverinfo: "text",
             marker: { opacity: 0.7, line: { width: 1, color: 'white' } },
-            colorbar: { title: "", x: 0.95, y: 0.4, len: 0.7, ticksuffix: tickSuffix },
+            colorbar: { title: "", x: 0.95, y: 0.4, len: 0.7 },
             zmin: zMin,
             zmax: zMax
           }]}
@@ -245,16 +233,16 @@ export default function ParentDashboard() {
               
               <MetricCard 
                 icon={<Calculator size={24} color="#007bff" />} 
-                title={selectedSchoolType === 'High School' ? "Math SAT Score" : "Math Proficiency"} 
+                title="Math Proficiency" 
                 value={selectedDistrict.math} 
-                suffix={selectedSchoolType === 'High School' ? "" : "%"} 
+                suffix="" 
               />
               
               <MetricCard 
                 icon={<BookOpen size={24} color="#2ca02c" />} 
-                title={selectedSchoolType === 'High School' ? "Reading SAT Score" : "Reading Proficiency"} 
+                title="Reading Proficiency" 
                 value={selectedDistrict.reading} 
-                suffix={selectedSchoolType === 'High School' ? "" : "%"} 
+                suffix="" 
               />
               
               <MetricCard 
