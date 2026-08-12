@@ -15,7 +15,7 @@ export default function ParentDashboard() {
 
     const metricsToFetch = ['rating_mean_math_all', 'rating_mean_ela_all', 'grad_pct_4_all'];
     const metricsStr = metricsToFetch.map(m => `'${m}'`).join(',');
-    const soql = `SELECT geographic_district, school_type, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) AND geographic_district IS NOT NULL LIMIT 200000`;
+    const soql = `SELECT dbn, school_type, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) AND dbn IS NOT NULL LIMIT 200000`;
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
     
     fetch(url).then(r => r.json()).then(setRawData).catch(err => console.error("Failed to fetch Socrata:", err));
@@ -31,10 +31,17 @@ export default function ParentDashboard() {
 
     const districtAgg = {};
 
+    // Check for Socrata error response
+    if (!Array.isArray(rawData)) {
+      console.error("Invalid API response:", rawData);
+      return;
+    }
+
     rawData.forEach(row => {
       if (allowedTypes && !allowedTypes.includes(row.school_type)) return;
+      if (!row.dbn || row.dbn.length < 2) return;
       
-      const dist = parseInt(row.geographic_district, 10).toString();
+      const dist = parseInt(row.dbn.substring(0, 2), 10).toString();
       if (isNaN(dist) || dist === 'NaN') return;
 
       const metric = row.metric_variable_name;
