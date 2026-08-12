@@ -85,7 +85,7 @@ export default function HighSchoolDashboard() {
   const textLabels = [];
 
   geojson.features.forEach(f => {
-    const distId = String(f.properties.schoolDist).padStart(2, '0');
+    const distId = String(f.properties.SchoolDist).padStart(2, '0');
     const data = metrics[distId];
     if (data) {
       locations.push(distId);
@@ -137,7 +137,7 @@ export default function HighSchoolDashboard() {
             geojson: geojson,
             locations: locations,
             z: zValues,
-            featureidkey: 'properties.schoolDist',
+            featureidkey: 'properties.SchoolDist',
             colorscale: 'Viridis',
             zmin: config.min,
             zmax: config.max,
