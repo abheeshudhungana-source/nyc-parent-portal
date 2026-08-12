@@ -6,6 +6,7 @@ export default function ParentDashboard() {
   const [geojson, setGeojson] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [mapMetric, setMapMetric] = useState('math');
 
   useEffect(() => {
     Promise.all([
@@ -19,40 +20,27 @@ export default function ParentDashboard() {
 
   if (!geojson || !metrics) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f4f7f6', fontFamily: 'sans-serif' }}>
-        <style>{`
-          @keyframes radar-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          @keyframes map-ripple {
-            0% { transform: scale(0.1); opacity: 0.8; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
-        `}</style>
-        
-        <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-          {/* Ripple effect at the base */}
-          <div style={{ 
-            position: 'absolute', bottom: '5px', width: '60px', height: '20px', 
-            border: '2px solid #3498db', borderRadius: '50%',
-            animation: 'map-ripple 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1)' 
-          }}></div>
-          
-          <svg width="80" height="100" viewBox="0 0 100 100" style={{ zIndex: 2 }}>
-            {/* Map Pin Body */}
-            <path 
-              fill="#2c3e50" 
-              d="M50 10c-16.6 0-30 13.4-30 30 0 20 30 55 30 55s30-35 30-55c0-16.6-13.4-30-30-30z" 
-            />
-            {/* Inner Hole */}
-            <circle cx="50" cy="40" r="15" fill="#f4f7f6" />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f0f4f8' }}>
+        <div style={{ position: 'relative', width: '100px', height: '100px', marginBottom: '20px' }}>
+          <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', animation: 'spin 4s linear infinite' }}>
+            <style>
+              {`
+                @keyframes spin { 100% { transform: rotate(360deg); } }
+                @keyframes ping { 0% { r: 0; opacity: 1; } 100% { r: 30px; opacity: 0; } }
+              `}
+            </style>
             
-            {/* Radar Sweeping Line */}
-            <g style={{ transformOrigin: '50px 40px', animation: 'radar-spin 1.2s linear infinite' }}>
-              <path d="M50 40 L50 25 A15 15 0 0 1 65 40 Z" fill="rgba(52, 152, 219, 0.3)" />
-              <line x1="50" y1="40" x2="50" y2="25" stroke="#3498db" strokeWidth="3" strokeLinecap="round" />
-            </g>
+            {/* Radar Grid Circles */}
+            <circle cx="50" cy="40" r="30" fill="none" stroke="#e0e0e0" strokeWidth="1" />
+            <circle cx="50" cy="40" r="20" fill="none" stroke="#e0e0e0" strokeWidth="1" />
+            <circle cx="50" cy="40" r="10" fill="none" stroke="#e0e0e0" strokeWidth="1" />
+            
+            {/* Radar Sweep */}
+            <path d="M 50 40 L 50 10 A 30 30 0 0 1 80 40 Z" fill="rgba(52, 152, 219, 0.2)" />
+            
+            {/* Target Ping */}
+            <circle cx="65" cy="25" fill="none" stroke="#3498db" strokeWidth="2" style={{ animation: 'ping 2s ease-out infinite' }} />
+            <circle cx="65" cy="25" r="2" fill="#e74c3c" />
             
             {/* Radar Center Dot */}
             <circle cx="50" cy="40" r="3" fill="#3498db" />
@@ -64,8 +52,6 @@ export default function ParentDashboard() {
       </div>
     );
   }
-
-  const [mapMetric, setMapMetric] = useState('math');
 
   // Extract arrays for Plotly
   const locations = [];
