@@ -32,7 +32,7 @@ export default function AnalystDashboard() {
       'pct_cri_4yr_all', 'lre_all'
     ];
     const metricsStr = targetMetrics.map(m => `'${m}'`).join(',');
-    const soql = `SELECT school_year, dbn, metric_variable_name, metric_value WHERE metric_variable_name IN (${metricsStr}) LIMIT 100000`;
+    const soql = `SELECT school_year, dbn, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) LIMIT 100000`;
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
 
     fetch(url)
@@ -58,11 +58,15 @@ export default function AnalystDashboard() {
           const metric = row.metric_variable_name;
           const year = row.school_year;
           const val = parseFloat(row.metric_value);
+          const weight = parseInt(row.number_of_students, 10);
           
-          if (!isNaN(val) && processed[metric]) {
+          if (!isNaN(val) && !isNaN(weight) && weight > 0 && processed[metric]) {
             processed[metric].years.add(year);
-            if (!processed[metric][boro][year]) processed[metric][boro][year] = [];
-            processed[metric][boro][year].push(val);
+            if (!processed[metric][boro][year]) {
+              processed[metric][boro][year] = { sumWeightedValues: 0, totalWeight: 0 };
+            }
+            processed[metric][boro][year].sumWeightedValues += (val * weight);
+            processed[metric][boro][year].totalWeight += weight;
           }
         });
 
@@ -72,10 +76,10 @@ export default function AnalystDashboard() {
           finalData[m] = { years: yearsArray };
           ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'].forEach(boro => {
             finalData[m][boro] = yearsArray.map(y => {
-              const vals = processed[m][boro][y];
-              if (!vals || vals.length === 0) return null;
-              const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-              return Math.round(avg * 10000) / 10000;
+              const boroYearData = processed[m][boro][y];
+              if (!boroYearData || boroYearData.totalWeight === 0) return null;
+              const weightedAvg = boroYearData.sumWeightedValues / boroYearData.totalWeight;
+              return Math.round(weightedAvg * 10000) / 10000;
             });
           });
         });
@@ -145,9 +149,30 @@ export default function AnalystDashboard() {
       };
     }).filter(Boolean);
 
+    const getTooltipText = (metricId) => {
+      if (metricId.includes('chronic_absent')) {
+        return "Definition: The percentage of students missing 10% or more of enrolled school days.";
+      } else if (metricId.includes('lre')) {
+        return "Least Restrictive Environment: Higher % means more students with disabilities are integrated into general education classrooms.";
+      }
+      return "Weighted average based on student population.";
+    };
+
     return (
       <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+          <h3 style={{ margin: 0, color: '#333' }}>{title}</h3>
+          <div 
+            title={getTooltipText(metricId)}
+            style={{ 
+              marginLeft: '10px', width: '18px', height: '18px', borderRadius: '50%', 
+              backgroundColor: '#ecf0f1', color: '#7f8c8d', fontSize: '12px', fontWeight: 'bold',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'help'
+            }}
+          >
+            ?
+          </div>
+        </div>
         <Plot
           data={traces}
           layout={{
