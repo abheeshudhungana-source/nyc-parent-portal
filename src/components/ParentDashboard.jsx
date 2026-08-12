@@ -13,7 +13,7 @@ export default function ParentDashboard() {
   useEffect(() => {
     fetch('/districts.geojson').then(r => r.json()).then(setGeojson);
 
-    const metricsToFetch = ['rating_mean_math_all', 'rating_mean_ela_all', 'grad_pct_4_all'];
+    const metricsToFetch = ['prof_pct_mth_all', 'prof_pct_ela_all', 'grad_pct_4_all'];
     const metricsStr = metricsToFetch.map(m => `'${m}'`).join(',');
     const soql = `SELECT dbn, school_type, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) AND dbn IS NOT NULL LIMIT 200000`;
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
@@ -66,8 +66,8 @@ export default function ParentDashboard() {
       };
 
       finalMetrics[dist] = {
-        math: getVal('rating_mean_math_all'),
-        reading: getVal('rating_mean_ela_all'),
+        math: getVal('prof_pct_mth_all'),
+        reading: getVal('prof_pct_ela_all'),
         graduation: getVal('grad_pct_4_all')
       };
     });
