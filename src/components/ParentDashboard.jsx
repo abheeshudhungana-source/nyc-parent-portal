@@ -65,9 +65,11 @@ export default function ParentDashboard() {
     );
   }
 
+  const [mapMetric, setMapMetric] = useState('math');
+
   // Extract arrays for Plotly
   const locations = [];
-  const mathScores = [];
+  const zScores = [];
   const textLabels = [];
 
   geojson.features.forEach(feature => {
@@ -76,7 +78,7 @@ export default function ParentDashboard() {
     const data = metrics[distId];
     if (data) {
       locations.push(distId);
-      mathScores.push(data.math || 0);
+      zScores.push(data[mapMetric] || 0);
       textLabels.push(`District ${distId}<br>Math: ${data.math}%<br>Reading: ${data.reading}%<br>Graduation: ${data.graduation}%`);
     }
   });
@@ -101,18 +103,32 @@ export default function ParentDashboard() {
           <p style={{ margin: '5px 0 0', color: '#666', fontSize: '0.9em' }}>Click any district for a Report Card</p>
         </div>
 
+        {/* INTERACTIVE LEGEND CONTROL */}
+        <div style={{ position: 'absolute', top: 20, right: 30, zIndex: 10, backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <label style={{ fontSize: '0.85em', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Color Map By</label>
+          <select 
+            value={mapMetric} 
+            onChange={(e) => setMapMetric(e.target.value)}
+            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
+          >
+            <option value="math">Math Proficiency %</option>
+            <option value="reading">Reading Proficiency %</option>
+            <option value="graduation">Graduation Rate %</option>
+          </select>
+        </div>
+
         <Plot
           data={[{
             type: "choroplethmapbox",
             geojson: geojson,
             locations: locations,
-            z: mathScores,
+            z: zScores,
             featureidkey: "properties.SchoolDist",
             colorscale: "Viridis",
             text: textLabels,
             hoverinfo: "text",
             marker: { opacity: 0.7, line: { width: 1, color: 'white' } },
-            colorbar: { title: "Math %", x: 0.95 }
+            colorbar: { title: "", x: 0.95, y: 0.4, len: 0.7 }
           }]}
           layout={{
             mapbox: {

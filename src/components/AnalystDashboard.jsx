@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 
-const METRICS = {
+const CURATED_METRICS = {
   academics: [
     { id: 'nondropout_4_all', title: '4-Year Non-Dropout Rate' },
     { id: 'pct_cer_6mo_vocat_all', title: 'Vocational Certification (6 mo)' },
     { id: 'grad_pct_4_all', title: '4-Year Graduation Rate' },
-    { id: 'grad_pct_6_all', title: '6-Year Graduation Rate' }
+    { id: 'grad_pct_6_all', title: '6-Year Graduation Rate' },
+    { id: 'ele_core_all', title: 'MS Core Course Pass Rate' },
+    { id: 'pct_accel_p_all', title: '8th Grader Accelerated Pass Rate' }
   ],
   engagement: [
     { id: 'attendance_k8_all', title: 'Average Student Attendance (K-8)' },
@@ -20,19 +22,45 @@ const METRICS = {
   ]
 };
 
+const SCHOOL_TYPES = [
+  "All",
+  "High School",
+  "High School Transfer",
+  "Elementary",
+  "Middle",
+  "K-8",
+  "D75"
+];
+
 export default function AnalystDashboard() {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('academics');
   const [selectedBoroughs, setSelectedBoroughs] = useState(['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island']);
+  const [selectedSchoolType, setSelectedSchoolType] = useState('All');
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Explorer State
+  const [explorerMetricsList, setExplorerMetricsList] = useState([]);
+  const [explorerSelectedMetric, setExplorerSelectedMetric] = useState('');
+
+  // Fetch Curated Metrics Data
   useEffect(() => {
-    const targetMetrics = [
-      'nondropout_4_all', 'pct_cer_6mo_vocat_all', 'grad_pct_4_all', 'grad_pct_6_all',
-      'attendance_k8_all', 'chronic_absent_ems_all', 'attendance_hs_all', 'chronic_absent_hs_all',
-      'pct_cri_4yr_all', 'lre_all'
-    ];
+    setIsLoading(true);
+    const targetMetrics = Object.values(CURATED_METRICS).flatMap(cat => cat.map(m => m.id));
+    
+    // Always fetch explorer metric if selected, so we don't lose it on school type change
+    if (explorerSelectedMetric && !targetMetrics.includes(explorerSelectedMetric)) {
+      targetMetrics.push(explorerSelectedMetric);
+    }
+
     const metricsStr = targetMetrics.map(m => `'${m}'`).join(',');
-    const soql = `SELECT school_year, dbn, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) LIMIT 100000`;
+    let soql = `SELECT school_year, dbn, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr})`;
+    
+    if (selectedSchoolType !== 'All') {
+      soql += ` AND school_type = '${selectedSchoolType}'`;
+    }
+    
+    soql += ` LIMIT 200000`;
     const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
 
     fetch(url)
@@ -85,20 +113,55 @@ export default function AnalystDashboard() {
         });
 
         setData(finalData);
+        setIsLoading(false);
       })
       .catch(err => {
-        console.error("Live fetch failed, attempting fallback to static JSON:", err);
-        fetch('/borough_timeseries.json')
-          .then(res => res.json())
-          .then(json => setData(json))
-          .catch(fallbackErr => {
-            console.error("Fallback also failed:", fallbackErr);
-            setData({}); // set to empty object to remove loading screen
-          });
+        console.error("Live fetch failed:", err);
+        if (selectedSchoolType === 'All') {
+           // fallback to json if default filter
+           fetch('/borough_timeseries.json')
+            .then(res => res.json())
+            .then(json => {
+              setData(json);
+              setIsLoading(false);
+            })
+            .catch(() => {
+              setData({});
+              setIsLoading(false);
+            });
+        } else {
+          setData({});
+          setIsLoading(false);
+        }
       });
-  }, []);
+  }, [selectedSchoolType, explorerSelectedMetric]);
 
-  if (!data) {
+  // Fetch Full Metric Catalog for Explorer
+  useEffect(() => {
+    if (activeTab === 'explorer' && explorerMetricsList.length === 0) {
+      const soql = `SELECT metric_variable_name, metric_display_name GROUP BY metric_variable_name, metric_display_name LIMIT 2000`;
+      const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
+      fetch(url)
+        .then(res => res.json())
+        .then(rows => {
+          const formatted = rows
+            .filter(r => r.metric_variable_name && r.metric_display_name)
+            .map(r => ({
+              id: r.metric_variable_name,
+              title: r.metric_display_name
+            }))
+            .sort((a, b) => a.title.localeCompare(b.title));
+          
+          setExplorerMetricsList(formatted);
+          if (formatted.length > 0 && !explorerSelectedMetric) {
+            setExplorerSelectedMetric(formatted[0].id);
+          }
+        })
+        .catch(err => console.error("Failed to fetch metric catalog:", err));
+    }
+  }, [activeTab, explorerMetricsList.length, explorerSelectedMetric]);
+
+  if (isLoading && !data) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f4f7f6' }}>
         <style>{`
@@ -123,12 +186,12 @@ export default function AnalystDashboard() {
   }
 
   const renderPlot = (metricId, title) => {
-    const metricData = data[metricId];
+    const metricData = data && data[metricId];
     if (!metricData) {
       return (
         <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
           <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
-          <p style={{ color: '#888' }}>Data not available in API.</p>
+          <p style={{ color: '#888' }}>Data not available for selected filters.</p>
         </div>
       );
     }
@@ -149,10 +212,10 @@ export default function AnalystDashboard() {
       };
     }).filter(Boolean);
 
-    const getTooltipText = (metricId) => {
-      if (metricId.includes('chronic_absent')) {
+    const getTooltipText = (id) => {
+      if (id.includes('chronic_absent')) {
         return "Definition: The percentage of students missing 10% or more of enrolled school days.";
-      } else if (metricId.includes('lre')) {
+      } else if (id.includes('lre')) {
         return "Least Restrictive Environment: Higher % means more students with disabilities are integrated into general education classrooms.";
       }
       return "Weighted average based on student population.";
@@ -195,9 +258,71 @@ export default function AnalystDashboard() {
       <h1 style={{ fontSize: '2.5em', color: '#2c3e50', margin: '0 0 10px' }}>Analyst Dashboard</h1>
       <p style={{ color: '#7f8c8d', fontSize: '1.1em', marginBottom: '30px' }}>Time-Series Borough Analysis. Click legend items to isolate or compare boroughs.</p>
 
+      {/* FILTER PANEL */}
+      <div style={{ marginBottom: '30px', padding: '25px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', flexWrap: 'wrap', gap: '40px' }}>
+        
+        {/* BOROUGH FILTER */}
+        <div style={{ flex: '1 1 500px' }}>
+          <h3 style={{ margin: '0 0 15px', color: '#2c3e50', fontSize: '1.1em' }}>Filter Boroughs</h3>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'].map(boro => (
+              <label key={boro} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '1.05em', color: '#34495e' }}>
+                <input 
+                  type="checkbox" 
+                  checked={selectedBoroughs.includes(boro)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedBoroughs([...selectedBoroughs, boro]);
+                    } else {
+                      setSelectedBoroughs(selectedBoroughs.filter(b => b !== boro));
+                    }
+                  }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                {boro}
+              </label>
+            ))}
+            <button 
+              onClick={() => setSelectedBoroughs(['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'])}
+              style={{ 
+                padding: '8px 16px', borderRadius: '6px', 
+                border: '1px solid #bdc3c7', background: '#ecf0f1', color: '#2c3e50',
+                cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s'
+              }}
+            >
+              Select All
+            </button>
+          </div>
+        </div>
+
+        {/* SCHOOL TYPE FILTER */}
+        <div style={{ flex: '1 1 300px' }}>
+          <h3 style={{ margin: '0 0 15px', color: '#2c3e50', fontSize: '1.1em' }}>School Type</h3>
+          <select 
+            value={selectedSchoolType}
+            onChange={(e) => setSelectedSchoolType(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '1.05em',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#f8fafc',
+              color: '#334155',
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            {SCHOOL_TYPES.map(type => (
+              <option key={type} value={type}>{type === 'All' ? 'All School Types' : type}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* TABS */}
-      <div style={{ display: 'flex', gap: '15px', marginBottom: '40px' }}>
-        {Object.keys(METRICS).map(tab => (
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
+        {Object.keys(CURATED_METRICS).concat(['explorer']).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -211,54 +336,67 @@ export default function AnalystDashboard() {
               cursor: 'pointer',
               backgroundColor: activeTab === tab ? '#3498db' : '#e0e6ed',
               color: activeTab === tab ? 'white' : '#7f8c8d',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
-            {tab}
+            {tab === 'explorer' ? '🔍 Metric Explorer' : tab}
           </button>
         ))}
       </div>
 
-      {/* BOROUGH FILTER */}
-      <div style={{ marginBottom: '30px', padding: '20px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ margin: '0 0 15px', color: '#2c3e50', fontSize: '1.1em' }}>Filter Boroughs (Applies to all graphs)</h3>
-        <div style={{ display: 'flex', gap: '25px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'].map(boro => (
-            <label key={boro} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '1.05em', color: '#34495e' }}>
-              <input 
-                type="checkbox" 
-                checked={selectedBoroughs.includes(boro)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedBoroughs([...selectedBoroughs, boro]);
-                  } else {
-                    setSelectedBoroughs(selectedBoroughs.filter(b => b !== boro));
-                  }
-                }}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-              />
-              {boro}
-            </label>
-          ))}
-          <button 
-            onClick={() => setSelectedBoroughs(['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'])}
-            style={{ 
-              marginLeft: 'auto', padding: '8px 16px', borderRadius: '6px', 
-              border: '1px solid #bdc3c7', background: '#ecf0f1', color: '#2c3e50',
-              cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s'
-            }}
-            onMouseOver={(e) => e.target.style.background = '#bdc3c7'}
-            onMouseOut={(e) => e.target.style.background = '#ecf0f1'}
-          >
-            Select All
-          </button>
+      {isLoading && data && (
+        <div style={{ padding: '20px', backgroundColor: '#e8f4fd', color: '#2980b9', borderRadius: '8px', marginBottom: '30px', fontWeight: 'bold' }}>
+          Refreshing data for selected filters...
         </div>
-      </div>
+      )}
 
       {/* GRAPHS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(600px, 1fr))', gap: '30px' }}>
-        {METRICS[activeTab].map(m => renderPlot(m.id, m.title))}
-      </div>
+      {activeTab === 'explorer' ? (
+        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+          <h2 style={{ marginTop: 0, color: '#2c3e50' }}>Discover Metrics</h2>
+          <p style={{ color: '#7f8c8d', marginBottom: '20px' }}>Select from the full catalog of hundreds of available NYC school metrics.</p>
+          
+          {explorerMetricsList.length === 0 ? (
+            <div>Loading metric catalog from API...</div>
+          ) : (
+            <div style={{ marginBottom: '30px' }}>
+              <select
+                value={explorerSelectedMetric}
+                onChange={(e) => setExplorerSelectedMetric(e.target.value)}
+                style={{
+                  width: '100%',
+                  maxWidth: '800px',
+                  padding: '15px',
+                  fontSize: '1.1em',
+                  borderRadius: '8px',
+                  border: '2px solid #3498db',
+                  backgroundColor: '#f8fafc',
+                  color: '#2c3e50',
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                {explorerMetricsList.map(m => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {explorerSelectedMetric && renderPlot(
+             explorerSelectedMetric, 
+             explorerMetricsList.find(m => m.id === explorerSelectedMetric)?.title || explorerSelectedMetric
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(600px, 1fr))', gap: '30px' }}>
+          {CURATED_METRICS[activeTab].map(m => renderPlot(m.id, m.title))}
+        </div>
+      )}
+
     </div>
   );
 }
