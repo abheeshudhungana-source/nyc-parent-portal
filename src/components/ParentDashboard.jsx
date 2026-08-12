@@ -4,19 +4,76 @@ import { BookOpen, GraduationCap, Calculator } from 'lucide-react';
 
 export default function ParentDashboard() {
   const [geojson, setGeojson] = useState(null);
+  const [rawData, setRawData] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [selectedDistrict, setSelectedDistrict] = useState(null);
   const [mapMetric, setMapMetric] = useState('math');
+  const [selectedSchoolType, setSelectedSchoolType] = useState('All Schools');
 
   useEffect(() => {
-    Promise.all([
-      fetch('/districts.geojson').then(r => r.json()),
-      fetch('/district_metrics.json').then(r => r.json())
-    ]).then(([geo, data]) => {
-      setGeojson(geo);
-      setMetrics(data);
-    });
+    fetch('/districts.geojson').then(r => r.json()).then(setGeojson);
+
+    const metricsToFetch = ['rating_mean_math_all', 'rating_mean_ela_all', 'grad_pct_4_all'];
+    const metricsStr = metricsToFetch.map(m => `'${m}'`).join(',');
+    const soql = `SELECT geographic_district, school_type, metric_variable_name, metric_value, number_of_students WHERE metric_variable_name IN (${metricsStr}) AND geographic_district IS NOT NULL LIMIT 200000`;
+    const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
+    
+    fetch(url).then(r => r.json()).then(setRawData).catch(err => console.error("Failed to fetch Socrata:", err));
   }, []);
+
+  useEffect(() => {
+    if (!rawData) return;
+    
+    let allowedTypes = null;
+    if (selectedSchoolType === 'Elementary') allowedTypes = ['Elementary', 'K-8', 'K-3', 'K-2', 'K-1'];
+    else if (selectedSchoolType === 'Middle') allowedTypes = ['Middle', 'K-8'];
+    else if (selectedSchoolType === 'High School') allowedTypes = ['High School', 'High School Transfer', 'YABC'];
+
+    const districtAgg = {};
+
+    rawData.forEach(row => {
+      if (allowedTypes && !allowedTypes.includes(row.school_type)) return;
+      
+      const dist = parseInt(row.geographic_district, 10).toString();
+      if (isNaN(dist) || dist === 'NaN') return;
+
+      const metric = row.metric_variable_name;
+      const val = parseFloat(row.metric_value);
+      const weight = parseInt(row.number_of_students, 10) || 1;
+
+      if (isNaN(val)) return;
+
+      if (!districtAgg[dist]) districtAgg[dist] = {};
+      if (!districtAgg[dist][metric]) districtAgg[dist][metric] = { sumWeighted: 0, totalWeight: 0 };
+      
+      districtAgg[dist][metric].sumWeighted += (val * weight);
+      districtAgg[dist][metric].totalWeight += weight;
+    });
+
+    const finalMetrics = {};
+    Object.keys(districtAgg).forEach(dist => {
+      const getVal = (metricName) => {
+        const m = districtAgg[dist][metricName];
+        if (!m || m.totalWeight === 0) return null;
+        return Math.round((m.sumWeighted / m.totalWeight) * 10) / 10;
+      };
+
+      finalMetrics[dist] = {
+        math: getVal('rating_mean_math_all'),
+        reading: getVal('rating_mean_ela_all'),
+        graduation: getVal('grad_pct_4_all')
+      };
+    });
+
+    setMetrics(finalMetrics);
+    
+    if (selectedDistrict) {
+      setSelectedDistrict(prev => ({
+        id: prev.id,
+        ...(finalMetrics[prev.id] || { math: null, reading: null, graduation: null })
+      }));
+    }
+  }, [rawData, selectedSchoolType]);
 
   if (!geojson || !metrics) {
     return (
@@ -29,45 +86,45 @@ export default function ParentDashboard() {
                 @keyframes ping { 0% { r: 0; opacity: 1; } 100% { r: 30px; opacity: 0; } }
               `}
             </style>
-            
-            {/* Radar Grid Circles */}
             <circle cx="50" cy="40" r="30" fill="none" stroke="#e0e0e0" strokeWidth="1" />
             <circle cx="50" cy="40" r="20" fill="none" stroke="#e0e0e0" strokeWidth="1" />
             <circle cx="50" cy="40" r="10" fill="none" stroke="#e0e0e0" strokeWidth="1" />
-            
-            {/* Radar Sweep */}
             <path d="M 50 40 L 50 10 A 30 30 0 0 1 80 40 Z" fill="rgba(52, 152, 219, 0.2)" />
-            
-            {/* Target Ping */}
             <circle cx="65" cy="25" fill="none" stroke="#3498db" strokeWidth="2" style={{ animation: 'ping 2s ease-out infinite' }} />
             <circle cx="65" cy="25" r="2" fill="#e74c3c" />
-            
-            {/* Radar Center Dot */}
             <circle cx="50" cy="40" r="3" fill="#3498db" />
           </svg>
         </div>
         
-        <div style={{ fontSize: '1.4em', color: '#2c3e50', fontWeight: 'bold' }}>Mapping NYC School Districts...</div>
-        <div style={{ fontSize: '1em', color: '#7f8c8d', marginTop: '8px' }}>Generating report cards</div>
+        <div style={{ fontSize: '1.4em', color: '#2c3e50', fontWeight: 'bold' }}>Fetching Live District Data...</div>
+        <div style={{ fontSize: '1em', color: '#7f8c8d', marginTop: '8px' }}>Pulling from NYC OpenData</div>
       </div>
     );
   }
 
-  // Extract arrays for Plotly
   const locations = [];
   const zScores = [];
   const textLabels = [];
 
   geojson.features.forEach(feature => {
     const distId = feature.properties.SchoolDist.toString();
-    // Sometimes districts are 1-9 without a leading zero in the GeoJSON, but in our data they might be standard ints
     const data = metrics[distId];
     if (data) {
       locations.push(distId);
-      zScores.push(data[mapMetric] || 0);
-      textLabels.push(`District ${distId}<br>Math: ${data.math}%<br>Reading: ${data.reading}%<br>Graduation: ${data.graduation}%`);
+      const val = data[mapMetric];
+      zScores.push(val !== null && val !== undefined ? val : NaN);
+      
+      const mStr = data.math !== null && data.math !== undefined ? `${data.math}` : 'N/A';
+      const rStr = data.reading !== null && data.reading !== undefined ? `${data.reading}` : 'N/A';
+      const gStr = data.graduation !== null && data.graduation !== undefined ? `${data.graduation}%` : 'N/A';
+      textLabels.push(`District ${distId}<br>Math: ${mStr}<br>Reading: ${rStr}<br>Graduation: ${gStr}`);
     }
   });
+
+  // Calculate valid min and max for the colorscale
+  const validZ = zScores.filter(v => !isNaN(v));
+  const zMin = validZ.length > 0 ? Math.min(...validZ) : 0;
+  const zMax = validZ.length > 0 ? Math.max(...validZ) : 100;
 
   const handleMapClick = (data) => {
     if (data.points && data.points.length > 0) {
@@ -90,17 +147,35 @@ export default function ParentDashboard() {
         </div>
 
         {/* INTERACTIVE LEGEND CONTROL */}
-        <div style={{ position: 'absolute', top: 20, right: 30, zIndex: 10, backgroundColor: 'white', padding: '10px 15px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <label style={{ fontSize: '0.85em', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Color Map By</label>
-          <select 
-            value={mapMetric} 
-            onChange={(e) => setMapMetric(e.target.value)}
-            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
-          >
-            <option value="math">Math Proficiency %</option>
-            <option value="reading">Reading Proficiency %</option>
-            <option value="graduation">Graduation Rate %</option>
-          </select>
+        <div style={{ position: 'absolute', top: 20, right: 30, zIndex: 10, backgroundColor: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '200px' }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '0.85em', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>School Level</label>
+            <select 
+              value={selectedSchoolType} 
+              onChange={(e) => setSelectedSchoolType(e.target.value)}
+              style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
+            >
+              <option value="All Schools">All Schools</option>
+              <option value="Elementary">Elementary</option>
+              <option value="Middle">Middle School</option>
+              <option value="High School">High School</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '0.85em', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Color Map By</label>
+            <select 
+              value={mapMetric} 
+              onChange={(e) => setMapMetric(e.target.value)}
+              style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', outline: 'none', cursor: 'pointer', fontSize: '1em', backgroundColor: '#f8f9fa', color: '#333' }}
+            >
+              <option value="math">Math Proficiency</option>
+              <option value="reading">Reading Proficiency</option>
+              <option value="graduation">Graduation Rate %</option>
+            </select>
+          </div>
+
         </div>
 
         <Plot
@@ -114,7 +189,9 @@ export default function ParentDashboard() {
             text: textLabels,
             hoverinfo: "text",
             marker: { opacity: 0.7, line: { width: 1, color: 'white' } },
-            colorbar: { title: "", x: 0.95, y: 0.4, len: 0.7 }
+            colorbar: { title: "", x: 0.95, y: 0.4, len: 0.7 },
+            zmin: zMin,
+            zmax: zMax
           }]}
           layout={{
             mapbox: {
@@ -143,7 +220,7 @@ export default function ParentDashboard() {
         ) : (
           <div>
             <h2 style={{ fontSize: '2em', marginBottom: '5px', color: '#222' }}>District {selectedDistrict.id}</h2>
-            <p style={{ color: '#666', marginBottom: '40px' }}>School Report Card</p>
+            <p style={{ color: '#666', marginBottom: '40px' }}>School Report Card ({selectedSchoolType})</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
@@ -151,14 +228,14 @@ export default function ParentDashboard() {
                 icon={<Calculator size={24} color="#007bff" />} 
                 title="Math Proficiency" 
                 value={selectedDistrict.math} 
-                suffix="%" 
+                suffix="" 
               />
               
               <MetricCard 
                 icon={<BookOpen size={24} color="#2ca02c" />} 
                 title="Reading Proficiency" 
                 value={selectedDistrict.reading} 
-                suffix="%" 
+                suffix="" 
               />
               
               <MetricCard 
@@ -185,7 +262,7 @@ function MetricCard({ icon, title, value, suffix }) {
       <div>
         <h4 style={{ margin: 0, color: '#666', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px' }}>{title}</h4>
         <div style={{ fontSize: '2em', fontWeight: 'bold', color: '#222', marginTop: '5px' }}>
-          {value ? `${value}${suffix}` : 'N/A'}
+          {value !== null && value !== undefined && !isNaN(value) ? `${value}${suffix}` : 'N/A'}
         </div>
       </div>
     </div>
