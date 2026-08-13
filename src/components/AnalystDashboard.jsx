@@ -360,7 +360,33 @@ export default function AnalystDashboard() {
           <p style={{ color: '#7f8c8d', marginBottom: '20px' }}>Select from the full catalog of hundreds of available NYC school metrics.</p>
           
           {explorerMetricsList.length === 0 ? (
-            <div>Loading metric catalog from API...</div>
+            <div style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <style>{`
+                @keyframes scan-laser {
+                  0% { left: -10%; }
+                  50% { left: 100%; }
+                  100% { left: -10%; }
+                }
+              `}</style>
+              <div style={{ position: 'relative', width: '250px', height: '100px', overflow: 'hidden', borderBottom: '2px solid #cbd5e1' }}>
+                <svg viewBox="0 0 200 100" width="100%" height="100%" preserveAspectRatio="none">
+                  {/* NYC Skyline Path */}
+                  <path d="M 0 100 L 0 75 L 15 75 L 15 50 L 30 50 L 30 65 L 45 65 L 45 35 L 55 35 L 55 25 L 65 25 L 65 35 L 75 35 L 75 60 L 90 60 L 90 20 L 98 20 L 98 10 L 100 0 L 102 10 L 102 20 L 110 20 L 110 50 L 125 50 L 125 40 L 145 40 L 145 70 L 160 70 L 160 85 L 180 85 L 180 65 L 200 65 L 200 100 Z" fill="#94a3b8" />
+                </svg>
+                {/* Scanning Laser */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  width: '4px',
+                  background: 'rgba(52, 152, 219, 0.9)',
+                  boxShadow: '0 0 15px 2px rgba(52, 152, 219, 0.8)',
+                  animation: 'scan-laser 2s ease-in-out infinite'
+                }} />
+              </div>
+              <div style={{ marginTop: '20px', fontSize: '1.2em', color: '#334155', fontWeight: 'bold' }}>Scanning NYC OpenData...</div>
+              <div style={{ color: '#64748b', marginTop: '5px' }}>Compiling full metric catalog</div>
+            </div>
           ) : (
             <div style={{ marginBottom: '30px' }}>
               <select
