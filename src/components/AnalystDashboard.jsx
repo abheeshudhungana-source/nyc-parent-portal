@@ -106,7 +106,10 @@ export default function AnalystDashboard() {
             finalData[m][boro] = yearsArray.map(y => {
               const boroYearData = processed[m][boro][y];
               if (!boroYearData || boroYearData.totalWeight === 0) return null;
-              const weightedAvg = boroYearData.sumWeightedValues / boroYearData.totalWeight;
+              let weightedAvg = boroYearData.sumWeightedValues / boroYearData.totalWeight;
+              if (weightedAvg > 0 && weightedAvg <= 1.0 && !m.toLowerCase().includes('score')) {
+                weightedAvg *= 100;
+              }
               return Math.round(weightedAvg * 10000) / 10000;
             });
           });
@@ -138,8 +141,14 @@ export default function AnalystDashboard() {
 
   // Fetch Full Metric Catalog for Explorer
   useEffect(() => {
-    if (activeTab === 'explorer' && explorerMetricsList.length === 0) {
-      const soql = `SELECT metric_variable_name, metric_display_name GROUP BY metric_variable_name, metric_display_name LIMIT 2000`;
+    if (activeTab === 'explorer') {
+      setExplorerMetricsList([]); // Trigger loading state skyline
+      let soql = `SELECT metric_variable_name, metric_display_name `;
+      if (selectedSchoolType !== 'All') {
+        soql += `WHERE school_type = '${selectedSchoolType}' `;
+      }
+      soql += `GROUP BY metric_variable_name, metric_display_name LIMIT 2000`;
+      
       const url = `https://data.cityofnewyork.us/resource/dnpx-dfnc.json?$query=${encodeURIComponent(soql)}`;
       fetch(url)
         .then(res => res.json())
@@ -153,13 +162,15 @@ export default function AnalystDashboard() {
             .sort((a, b) => a.title.localeCompare(b.title));
           
           setExplorerMetricsList(formatted);
-          if (formatted.length > 0 && !explorerSelectedMetric) {
+          if (formatted.length > 0) {
             setExplorerSelectedMetric(formatted[0].id);
+          } else {
+            setExplorerSelectedMetric(''); // None available
           }
         })
         .catch(err => console.error("Failed to fetch metric catalog:", err));
     }
-  }, [activeTab, explorerMetricsList.length, explorerSelectedMetric]);
+  }, [activeTab, selectedSchoolType]);
 
   if (isLoading && !data) {
     return (
@@ -188,12 +199,36 @@ export default function AnalystDashboard() {
   const renderPlot = (metricId, title) => {
     const metricData = data && data[metricId];
     if (!metricData) {
-      return (
-        <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
-          <p style={{ color: '#888' }}>Data not available for selected filters.</p>
-        </div>
-      );
+      if (isLoading) {
+        return (
+          <div key={metricId} style={{ position: 'relative', backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px', height: '400px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <style>{`
+              @keyframes float-orbs {
+                0% { transform: translate(0px, 0px) scale(1); }
+                33% { transform: translate(30px, -50px) scale(1.1); }
+                66% { transform: translate(-20px, 20px) scale(0.9); }
+                100% { transform: translate(0px, 0px) scale(1); }
+              }
+            `}</style>
+            {/* Blurred Orbs */}
+            <div style={{ position: 'absolute', width: '150px', height: '150px', background: 'rgba(52, 152, 219, 0.4)', borderRadius: '50%', filter: 'blur(40px)', animation: 'float-orbs 6s infinite ease-in-out' }} />
+            <div style={{ position: 'absolute', width: '120px', height: '120px', background: 'rgba(46, 204, 113, 0.4)', borderRadius: '50%', filter: 'blur(40px)', animation: 'float-orbs 8s infinite ease-in-out reverse', marginLeft: '100px' }} />
+            <div style={{ position: 'absolute', width: '140px', height: '140px', background: 'rgba(155, 89, 182, 0.4)', borderRadius: '50%', filter: 'blur(40px)', animation: 'float-orbs 7s infinite ease-in-out 1s', marginTop: '80px' }} />
+            
+            {/* Frosted Glass Panel */}
+            <div style={{ position: 'relative', zIndex: 10, background: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.8)', borderRadius: '12px', padding: '20px 40px', color: '#2c3e50', fontWeight: 'bold', fontSize: '1.2em', boxShadow: '0 8px 32px rgba(31, 38, 135, 0.1)' }}>
+              Fetching Data...
+            </div>
+          </div>
+        );
+      } else {
+        return (
+          <div key={metricId} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '30px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '150px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#333' }}>{title}</h3>
+            <p style={{ color: '#888' }}>Data not available for selected filters.</p>
+          </div>
+        );
+      }
     }
 
     const boroughs = ['Manhattan', 'Bronx', 'Brooklyn', 'Queens', 'Staten Island'];
